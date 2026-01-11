@@ -1,0 +1,148 @@
+{% extends 'base.html.twig' %}
+
+{% block stylesheets %}
+    <link rel="stylesheet" href="{{ asset('css/articleshowrequest.css') }}">
+{% endblock %}
+
+{% block title %}Request{% endblock %}
+
+{% block body %}
+    <div class="container bg-white">
+
+            <!-- Left Card -->
+            <div class="col-md-4">
+                <div class="card fixed-card">
+                    <div class="image-container">
+                        <div class="first">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="discount">{{ Articleid.status }}</span>
+                            </div>
+                        </div>
+                        {% if Articleid.photo1 %}
+                            <img src="data:image/jpeg;base64,{{ Articleid.encodedPhoto1 }}" alt="Photo 1" class="img-thumbnail" style="width: 100%;">
+                        {% endif %}
+                    </div>
+                    <div class="product-detail-container p-2">
+                        <div class="d-flex justify-content-between">
+                            <h5 class="dress-name">{{ Articleid.titre }}</h5>
+                            <div class="d-flex flex-column mb-2">
+                                <small class="old-price text-right"></small>
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center pt-1">
+                            <div>
+                                <i class="fa fa-star-o rating-star"></i>
+                                <span class="rating-number">{{ Articleid.date ? Articleid.date|date('Y-m-d') : 'N/A' }}</span>
+                            </div>
+                            <a  href="{{ path('app_article_show', {'id': Articleid.id}) }}">
+                                <span class="off">Show</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        <!-- Logo Center -->
+        <div class="col-md-2 text-center">
+            <div class="logo-container">
+                <p class="swap-text">Wanna swap it?</p>
+                <img src="{{ asset('/images/Design_sans_titre_2_-removebg-preview.png') }}" alt="Logo" class="img-fluid">
+            </div>
+
+            <!-- See Message Button -->
+            <button id="see-message-btn" class="btn btn-primary mt-3">See Message</button>
+
+            <!-- Fixed Message Container -->
+            <div id="message-container" class="message-container">
+                <!-- Close Button -->
+                <button id="close-message-btn" class="close-btn">&times;</button>
+                <p id="message-text" class="message-text">{{ request.message }}</p>
+
+            </div>
+            {% if canManageRequest and request.status == 'encours' %}
+                <div class="button-container">
+                    <!-- Accept Button -->
+                    <form action="{{ path('app_request_accept', { 'id': request.id }) }}" method="POST" style="display: inline;">
+                        <button type="submit" class="btn btn-success">Accept</button>
+                    </form>
+
+                    <!-- Refuse Button -->
+                    <form action="{{ path('app_request_refuse', { 'id': request.id }) }}" method="POST" style="display: inline;">
+                        <button type="submit" class="btn btn-danger">Refuse</button>
+                    </form>
+                </div>
+            {% endif %}
+        </div>
+
+            <!-- Right Card -->
+            <div class="col-md-4">
+                <div class="card fixed-card">
+                    <div class="image-container">
+                        <div class="first">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="discount">{{ articleprop.status }}</span>
+                            </div>
+                        </div>
+                        {% if articleprop.photo1 %}
+                            <img src="data:image/jpeg;base64,{{ articleprop.encodedPhoto1 }}" alt="Photo 1" class="img-thumbnail" style="width: 100%;">
+                        {% endif %}
+                    </div>
+                    <div class="product-detail-container p-2">
+                        <div class="d-flex justify-content-between">
+                            <h5 class="dress-name">{{ articleprop.titre }}</h5>
+                            <div class="d-flex flex-column mb-2">
+                                <small class="old-price text-right"></small>
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center pt-1">
+                            <div>
+                                <i class="fa fa-star-o rating-star"></i>
+                                <span class="rating-number">{{ articleprop.date ? articleprop.date|date('Y-m-d') : 'N/A' }}</span>
+                            </div>
+                            <a  href="{{ path('app_article_show', {'id': articleprop.id}) }}">
+                                <span class="off">Show</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+
+         </div>
+    </div>
+
+
+
+
+
+
+
+    <a href="{{ path('app_request_index') }}">back to list</a>
+
+    {{ include('request/_delete_form.html.twig') }}
+    <script>document.addEventListener('DOMContentLoaded', () => {
+            const messageContainer = document.getElementById('message-container');
+            const messageText = document.getElementById('message-text');
+            const seeMessageButton = document.getElementById('see-message-btn');
+            const closeMessageButton = document.getElementById('close-message-btn');
+
+            // Function to show the message
+            function showMessage() {
+                messageContainer.classList.add('visible'); // Add the 'visible' class to show it
+            }
+
+            // Function to hide the message
+            function hideMessage() {
+                messageContainer.classList.remove('visible'); // Remove the 'visible' class to hide it
+            }
+
+            // When the "See Message" button is clicked, show the message
+            seeMessageButton.addEventListener('click', () => {
+                showMessage();
+            });
+
+            // When the close button (X) is clicked, hide the message
+            closeMessageButton.addEventListener('click', () => {
+                hideMessage();
+            });
+        });</script>
+{% endblock %}

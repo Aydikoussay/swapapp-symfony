@@ -1,0 +1,78 @@
+{% extends 'base.html.twig' %}
+
+{% block stylesheets %}
+    <link rel="stylesheet" href="{{ asset('css/articlecardscss.css') }}">
+
+{% endblock %}     {% block body %}
+<div class="d-flex">
+    {% include 'sidebar.html.twig' %}
+    <div class="flex-grow-1 p-4">
+          {% block content %}
+
+
+            <div class="container mt-5">
+        <div class="row">
+            {% for article in articles %}
+            {% if loop.index % 4 == 1 and not loop.first %}
+        </div><div class="row">  <!-- Close the previous row and start a new one after every 4th card -->
+            {% endif %}
+
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="image-container">
+                        <div class="first">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="discount">{{ article.status }}</span>
+                            </div>
+                        </div>
+                        {% if article.photo1 %}
+                            <img src="data:image/jpeg;base64,{{ article.encodedPhoto1 }}" alt="Photo 1" class="img-thumbnail" style="width: 100%;">
+                        {% endif %}
+                    </div>
+
+                    <div class="product-detail-container p-2">
+                        <div class="d-flex justify-content-between ">
+                            <h5 class="dress-name">{{ article.titre }}</h5>
+
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center pt-1">
+                            <div>
+                                <i class="fa fa-star-o rating-star"></i>
+                                <span class="rating-number">{{ article.date ? article.date|date('Y-m-d') : 'N/A' }}</span>
+                            </div>
+                            <p class="buy" ><span style="font-size: 20px ; color: #6D28D9 ; text-align: center">{{article.numberOfOffers }}<br></span> Offers</p>
+                        </div>
+
+                    </div>
+                </div>
+     <form method="post"
+              action="{{ path('app_article_delete', { id: article.id }) }}"
+              onsubmit="return confirm('Are you sure you want to delete this article?');"
+              style="display:inline-block">
+
+            <input type="hidden" name="_token"
+                   value="{{ csrf_token('delete' ~ article.id) }}">
+
+            <button class="btn btn-danger">
+                Delete
+            </button>
+        </form>
+
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    {#    <div class="advertising-zone">#}
+    {#        <img src="{{ asset('/images/SW-APP_1_-removebg-preview.jpg') }}" alt="Advertising Image" class="advertising-image">#}
+    {#        <!-- Or you can use a video instead -->#}
+    {#        <!-- <video class="advertising-video" autoplay muted loop>#}
+    {#            <source src="your-video-url.mp4" type="video/mp4">#}
+    {#        </video> -->#}
+    {#    </div>#}
+    
+{% endblock %}
+
+    </div>
+</div>  {% endblock %}

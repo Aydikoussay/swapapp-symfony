@@ -1,0 +1,77 @@
+{% extends 'base.html.twig' %}
+{% block stylesheets %}
+<style>
+
+    .sidebar {
+        width: 80px; /* Adjust for the collapsed state */
+        height: calc(100vh - 56px); /* Full height minus navbar height */
+        position: fixed; /* Fix the sidebar to the left */
+        top: 56px; /* Offset to account for the navbar */
+        left: 0;
+        background-color: #343a40; /* Sidebar background */
+        transition: width 0.3s;
+        overflow-x: hidden;
+        z-index: 1030; /* Ensure it stays on top */
+    }
+
+    /* When hovered, expand the sidebar */
+    .sidebar:hover {
+        width: 200px; /* Adjust width as needed */
+    }
+
+    /* Content wrapper to align next to the sidebar */
+    .content-wrapper {
+        margin-left: 80px; /* Match the width of the collapsed sidebar */
+        flex-grow: 1;
+        padding: 20px;
+        transition: margin-left 0.3s;
+    }
+
+    .sidebar:hover + .content-wrapper {
+        margin-left: 200px; /* Match the expanded sidebar width */
+    }
+
+</style>{% endblock %}
+{% block body %}
+    <div class="d-flex">
+        {% include 'sidebar.html.twig' %}
+        <div class="flex-grow-1 p-4">
+            {% block content %}
+                <h1>Your Made Requests</h1>
+                <table class="table table-striped">
+                    <thead>
+                    <tr>
+                        <th>Article</th>
+                        <th>Message</th>
+                        <th>Actions</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for request in madeRequests %}
+                        <tr>
+                            <td>{{ request.articleid.titre }}</td>
+                            <td>{{ request.message }}</td>
+                            <td>
+                                {% if request.status == 'encours' %}
+                                    <form action="{{ path('app_request_edit', { 'id': request.id }) }}" method="POST" class="d-inline">
+                                        <button type="submit" class="btn btn-secondary btn-sm">Edit</button>
+                                    </form>
+                                    <form action="{{ path('app_request_delete', { 'id': request.id }) }}" method="POST" class="d-inline">
+                                        <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                                    </form>
+                                {% else %}
+                                    <span class="text-muted">This request is done</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% else %}
+                        <tr>
+                            <td colspan="3" class="text-center">You have not made any requests.</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            {% endblock %}
+        </div>
+    </div>
+{% endblock %}

@@ -1,0 +1,92 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Log in!{% endblock %}
+
+{% block body %}
+    <style>
+        /* Ensure the background is fixed and covers the full viewport */
+        body {
+            background-image: url('{{ asset('images/12-15_New_article_Vizualuri_1-Vizual-1.jpg.webp') }}');
+            background-size: cover;
+            background-attachment: fixed;
+            background-position: center;
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Center the logo */
+        #site-logo {
+            display: block;
+            margin: 0 auto 20px; /* Center with auto margins and spacing below */
+        }
+
+        /* Login form container */
+        .login-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            gap: 20px; /* Add spacing between elements */
+        }
+
+        /* Login form styling */
+        .login-form {
+            width: 100%;
+            max-width: 400px;
+            padding: 30px;
+            border-radius: 10px;
+            background-color: rgba(255, 255, 255, 0.85);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+            text-align: center;
+        }
+
+        .login-form h1 {
+            font-size: 1.8rem;
+            margin-bottom: 20px;
+        }
+
+        .login-form label,
+        .login-form input {
+            width: 100%;
+        }
+
+        .btn {
+            border-radius: 5px;
+        }
+    </style>
+
+    <!-- Logo in the center -->
+    <img id="site-logo" src="{{ asset('/images/SW-APP_2_-removebg-preview.png') }}" alt="Site Logo" width="30%" />
+
+    <!-- Login Form -->
+    <div class="login-container">
+        <form method="post" class="login-form">
+            {% if error %}
+                <div class="alert alert-danger">{{ error.messageKey|trans(error.messageData, 'security') }}</div>
+            {% endif %}
+
+            {% if app.user %}
+                <div class="mb-3">
+                    Hi, Welcome back {{ app.user.firstname }}! <a href="{{ path('app_logout') }}">Logout</a>
+                </div>
+            {% endif %}
+
+            <h1 class="h3 mb-3 font-weight-normal">Please sign in</h1>
+            <label for="inputEmail">Email</label>
+            <input type="email" value="{{ last_username }}" name="email" id="inputEmail" class="form-control" autocomplete="email" required autofocus>
+            <label for="inputPassword">Password</label>
+            <input type="password" name="password" id="inputPassword" class="form-control" autocomplete="current-password" required>
+
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token('authenticate') }}">
+
+            <button class="btn mt-4 btn-lg btn-primary w-100" type="submit">
+                Sign in
+            </button>
+                <a href="{{ path('app_register') }}">Create account</a>
+        </form>
+    </div>
+{% endblock %}

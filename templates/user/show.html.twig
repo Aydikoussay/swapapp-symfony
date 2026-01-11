@@ -1,0 +1,289 @@
+{% extends 'base.html.twig' %}
+{% block stylesheets %}
+    <style>
+        :root {
+            --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --glass-bg: rgba(255, 255, 255, 0.95);
+            --shadow-sm: 0 2px 4px rgba(0,0,0,0.05);
+            --shadow-md: 0 4px 6px rgba(0,0,0,0.07);
+            --shadow-lg: 0 10px 25px rgba(0,0,0,0.1);
+            --border-radius: 16px;
+        }
+
+        body {
+            background: #f8fafc;
+            margin-top: 1%;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        .glass-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            border-radius: var(--border-radius);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: var(--shadow-lg);
+            padding: 2rem;
+        }
+
+        .profile-avatar-container {
+            position: relative;
+            width: 160px;
+            height: 160px;
+            margin: 0 auto;
+        }
+
+        .profile-avatar {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 4px solid white;
+            box-shadow: var(--shadow-lg);
+            transition: transform 0.3s ease;
+        }
+
+        .profile-avatar:hover {
+            transform: scale(1.05);
+        }
+
+        .avatar-placeholder {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 3rem;
+            font-weight: 600;
+        }
+
+        .info-item {
+            display: flex;
+            align-items: center;
+            padding: 1rem 1.5rem;
+            margin-bottom: 0.75rem;
+            background: #f8fafc;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            border: 1px solid #e2e8f0;
+        }
+
+        .info-item:hover {
+            background: #f1f5f9;
+            transform: translateX(4px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .info-icon {
+            width: 24px;
+            height: 24px;
+            margin-right: 1rem;
+            color: #64748b;
+        }
+
+        .info-label {
+            font-size: 0.875rem;
+            color: #64748b;
+            margin-bottom: 0.25rem;
+            font-weight: 500;
+        }
+
+        .info-value {
+            font-size: 1rem;
+            color: #1e293b;
+            font-weight: 500;
+        }
+
+        .divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #e2e8f0, transparent);
+            margin: 2rem 0;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.5rem 1rem;
+            background: #f0f9ff;
+            color: #0369a1;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            border: 1px solid #bae6fd;
+        }
+
+        .content-wrapper {
+            margin-left: 80px;
+            flex-grow: 1;
+            padding: 2rem;
+            transition: margin-left 0.3s;
+        }
+
+        .sidebar:hover + .content-wrapper {
+            margin-left: 200px;
+        }
+
+        /* Modern sidebar update */
+        .sidebar {
+            width: 80px;
+            position: fixed;
+            top: 56px;
+            left: 0;
+            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow-x: hidden;
+            z-index: 1030;
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .sidebar:hover {
+            width: 240px;
+            box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15);
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 60px;
+            }
+            
+            .content-wrapper {
+                margin-left: 60px;
+                padding: 1rem;
+            }
+            
+            .glass-card {
+                padding: 1.5rem;
+            }
+        }
+    </style>
+{% endblock %}
+
+{% block body %}
+    <div class="d-flex">
+        {% include 'sidebar.html.twig' %}
+        
+        <div class="content-wrapper">
+            {% block content %}
+                <div class="container-fluid">
+                    <!-- Header Section -->
+                    <div class="row mb-5">
+                        <div class="col-12">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h1 class="h3 mb-2" style="color: #1e293b; font-weight: 600;">Profile Overview</h1>
+                                    <p class="text-muted">View and manage your personal information</p>
+                                </div>
+                                <span class="status-badge">
+                                    <svg class="info-icon me-2" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                                    </svg>
+                                    Active Profile
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Main Profile Content -->
+                    <div class="row justify-content-center">
+                        <div class="col-lg-10 col-xl-8">
+                            <div class="glass-card">
+                                <div class="row g-4">
+                                    <!-- Left Column - Avatar & Basic Info -->
+                                    <div class="col-md-4">
+                                        <div class="text-center mb-4">
+                                            <div class="profile-avatar-container mb-3">
+                                                {% if user.pdp %}
+                                                    <img src="data:image/jpeg;base64,{{ user.getEncodedPdp() }}" 
+                                                         alt="Profile Photo" 
+                                                         class="profile-avatar">
+                                                {% else %}
+                                                    <div class="avatar-placeholder">
+                                                        {{ user.firstname|first|upper }}{{ user.lastname|first|upper }}
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+                                            
+                                            <h3 class="h4 mb-1" style="color: #1e293b; font-weight: 600;">
+                                                {{ user.firstname }} {{ user.lastname }}
+                                            </h3>
+                                            <p class="text-muted mb-3">{{ user.email }}</p>
+                                            
+                                            <div class="d-flex justify-content-center gap-2">
+                                                <div class="text-center px-3 py-2 rounded" style="background: #f0f9ff;">
+                                                    <div class="fw-bold" style="color: #0369a1;">
+                                                        {% set initials = user.firstname|first|upper ~ user.lastname|first|upper %}
+                                                        {{ initials }}
+                                                    </div>
+                                                    <small class="text-muted">Initials</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Right Column - Detailed Info -->
+                                    <div class="col-md-8">
+                                        <h4 class="h5 mb-4" style="color: #1e293b; font-weight: 600;">Personal Information</h4>
+                                        
+                                        <div class="mb-4">
+                                            <div class="info-item">
+                                                <svg class="info-icon" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/>
+                                                </svg>
+                                                <div>
+                                                    <div class="info-label">Full Name</div>
+                                                    <div class="info-value">{{ user.firstname }} {{ user.lastname }}</div>
+                                                </div>
+                                            </div>
+
+                                            <div class="info-item">
+                                                <svg class="info-icon" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fill-rule="evenodd" d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" clip-rule="evenodd"/>
+                                                </svg>
+                                                <div>
+                                                    <div class="info-label">Phone Number</div>
+                                                    <div class="info-value">{{ user.phonenum }}</div>
+                                                </div>
+                                            </div>
+
+                                            <div class="info-item">
+                                                <svg class="info-icon" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/>
+                                                    <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/>
+                                                </svg>
+                                                <div>
+                                                    <div class="info-label">Email Address</div>
+                                                    <div class="info-value">{{ user.email }}</div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Additional Information Section -->
+                                        <div class="divider"></div>
+                                        
+                                        <h5 class="h6 mb-3" style="color: #64748b; font-weight: 500;">Profile Details</h5>
+                                        
+                                        <div class="row g-3">
+                                            <div class="col-md-6">
+                                                <div class="p-3 rounded" style="background: #f8fafc;">
+                                                    <div class="info-label">First Name</div>
+                                                    <div class="info-value">{{ user.firstname }}</div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="p-3 rounded" style="background: #f8fafc;">
+                                                    <div class="info-label">Last Name</div>
+                                                    <div class="info-value">{{ user.lastname }}</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endblock %}
+        </div>
+    </div>
+{% endblock %}

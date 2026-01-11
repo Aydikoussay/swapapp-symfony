@@ -1,0 +1,66 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Register{% endblock %}
+
+{% block body %}
+    <style>
+        .form-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        body {
+            background-image: url('{{ asset('images/12-15_New_article_Vizualuri_1-Vizual-1.jpg.webp') }}'); /* Replace with your image path */
+            background-size: cover;
+            background-position: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .form-container h1 {
+            text-align: center;
+        }
+        .register-form {
+            width: 100%;
+            max-width: 400px;
+            padding: 30px;
+            border-radius: 8px;
+            background-color: rgba(255, 255, 255, 0.8); /* Semi-transparent background */
+            backdrop-filter: blur(50px); /* Apply blur to the background of the form */
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1); /* Optional: add a subtle shadow */
+        }
+
+        .register-form label, .register-form input {
+            width: 100%;
+        }
+        .form-container button {
+            width: 100%; /* Optional, for full-width submit button */
+        }
+    </style>
+
+    <div class="form-container" >
+        <form method="post" class="register-form" enctype="multipart/form-data">
+            <h1>Register</h1>
+
+            {{ form_errors(registrationForm) }}
+
+            {{ form_start(registrationForm, { 'attr': { 'enctype': 'multipart/form-data' } }) }}
+            {{ form_row(registrationForm.firstname) }}
+            {{ form_row(registrationForm.lastname) }}
+            {{ form_row(registrationForm.phonenum) }}
+            {{ form_row(registrationForm.email) }}
+            {{ form_row(registrationForm.pdp, {
+                'label': 'Profile Picture (optional)'
+            }) }}
+            {{ form_row(registrationForm.plainPassword, {
+                'label': 'Password'
+            }) }}
+            {{ form_row(registrationForm.agreeTerms) }}
+    <a href="{{ path('app_login') }}">already have an account ? login</a>
+            <button type="submit" class="btn mt-4 btn-lg btn-primary w-100" >Register</button>
+            {{ form_end(registrationForm) }}
+        </form>
+    </div>
+
+{% endblock %}

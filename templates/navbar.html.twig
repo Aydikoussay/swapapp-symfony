@@ -1,0 +1,71 @@
+
+
+<style>
+
+  .navbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 1000;
+    height: 70px;  /* Set a height for the navbar */
+  }
+
+  /* Add padding or margin to the top of the body to push content below the navbar */
+  body {
+    padding-top: 50px; /* Adjust based on navbar height */
+  }
+  .container {
+    width: 100%; /* Make the container responsive */
+    margin: 0 auto; /* Center the container */
+  }
+
+
+</style>
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="#">
+      <img id="site-logo" src="{{ asset('/images/SW-APP_2_-removebg-preview.png') }}" alt="Site Logo" width="30%" />
+    </a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+            aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+      <i class="fas fa-bars"></i>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav me-auto">
+        <li class="nav-item">
+          <a class="nav-link active" href="{{ path('app_article_index') }}">Articles</a>
+        </li>
+        {% if not is_granted('ROLE_ADMIN') %}
+
+        <li class="nav-item">
+          <a class="nav-link" href="{{ path('app_article_new') }}">Create Article</a>
+        </li>          {% endif %}
+
+        <li class="nav-item">
+          <a class="nav-link" href="#about">About</a>
+        </li>
+      </ul>
+      <form class="d-flex" action="" method="get">
+        <input class="form-control me-2" type="search" name="query" placeholder="Search" aria-label="Search">
+        <button class="btn btn-outline-light" type="submit">Search</button>
+      </form>
+      <ul class="navbar-nav ms-auto">
+        <li class="nav-item">
+          {% if not is_granted('ROLE_ADMIN') %}
+          <a class="nav-link" href="{{ path('app_user_edit') }}">My infos</a>
+          {% endif %}
+          {% if is_granted('ROLE_ADMIN') %}
+        <li class="nav-item">
+          <a class="nav-link" href="{{ path('app_user_edit') }}">Admin space</a>
+        </li>
+        {% endif %}
+        <li class="nav-item">
+          <a class="nav-link" href="{{ path('app_logout') }}">
+            <i class="fas fa-sign-out-alt"></i> Logout
+          </a>
+        </li>
+      </ul>
+    </div>
+  </div>
+</nav>

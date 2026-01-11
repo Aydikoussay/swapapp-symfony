@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}Welcome!{% endblock %}</title>
+    <!-- Bootstrap CSS (via CDN) -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet">
+    {% block stylesheets %}
+            {{ encore_entry_link_tags('app') }}
+    {% endblock %}
+    <meta name="turbo-visit-control" content="disable">
+</head>
+<body>
+<!-- Only include the Navbar if not on login or register routes -->
+{% if app.request.attributes.get('_route') != 'app_login' and app.request.attributes.get('_route') != 'app_register' %}
+    {% include 'navbar.html.twig' %}
+{% endif %}
+
+<!-- Main Content -->
+<div class="container" style="margin-top: 80px;"> <!-- Adjust the margin-top to account for the fixed navbar -->
+    {% block body %}
+
+    {% endblock %}
+</div>
+
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
+{% block javascripts %}
+            {{ encore_entry_script_tags('app') }}
+{% endblock %}
+</body>
+</html>

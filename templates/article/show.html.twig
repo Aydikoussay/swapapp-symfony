@@ -1,0 +1,235 @@
+{% extends 'base.html.twig' %}
+{% block stylesheets %}
+    <link rel="stylesheet" href="{{ asset('css/articleshow.css') }}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/foundation/6.5.3/css/foundation.min.css">
+{% endblock %}
+{% block body %}
+<main class="main">
+    <div class="mainWrapper">
+        <div class="mainBackground clearfix">
+            <div class="row">
+                    <div class="productCard_block">
+                        <div class="row">
+                            <div class="small-12 large-6 columns">
+                                <div class="productCard_leftSide clearfix">
+
+
+                                    <div class="sliderBlock">
+                                        <ul class="sliderBlock_items">
+                                            {% set photos = [article.encodedPhoto1, article.encodedPhoto2, article.encodedPhoto3] %}
+
+                                            {% for photo in photos %}
+                                                {% if photo is not null %}
+                                                    <li class="sliderBlock_items__itemPhoto">
+                                                        <div class="image-container">
+                                                            <img src="data:image/jpeg;base64,{{ photo }}" alt="Product Image {{ loop.index }}" loading="lazy">
+                                                        </div>
+                                                    </li>
+                                                {% endif %}
+                                            {% endfor %}
+
+
+                                        </ul>
+
+                                        <div class="sliderBlock_controls">
+                                            <div class="sliderBlock_controls__navigatin">
+                                                <div class="sliderBlock_controls__wrapper">
+                                                    <div class="sliderBlock_controls__arrow sliderBlock_controls__arrowBackward">
+                                                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                                                    </div>
+                                                    <div class="sliderBlock_controls__arrow sliderBlock_controls__arrowForward">
+                                                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <ul class="sliderBlock_positionControls">
+                                                {% set validPhotos = photos|filter(v => v is not null) %}
+                                                {% for i in validPhotos %}
+                                                    <li class="sliderBlock_positionControls__paginatorItem {% if loop.index == 1 %}sliderBlock_positionControls__active{% endif %}"></li>
+                                                {% endfor %}
+                                            </ul>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+                            <div class="small-12 large-6 columns">
+                                <div class="productCard_rightSide">
+                                    <div class="block_specification">
+
+
+                                    </div>
+
+                                    <p class="block_model">
+                                        <span class="block_model__text">Owner </span>
+                                        <span class="block_model__number"><strong>{{ article.user.firstname }} {{ article.user.lastname }}</strong>
+</span>
+                                    </p>
+
+                                    <div class="block_product">
+                                        <h2 class="block_name block_name__mainName">{{ article.titre }}</h2>
+
+                                        <p class="block_product__advantagesProduct">
+                                            {{article.categorie.name}}
+                                        </p>
+
+
+
+                                            <div class="block_descriptionInformation">
+                                                <span>
+                                                {{ article.description }}
+
+                                                </span>
+                                            </div>
+
+
+                                            <div class="row ">
+
+                                                <div class="large-6 small-12 column end">
+
+                                                    </div>
+                                                <a href="{{ path('app_request_make_offer', { 'id': article.id }) }}" method="POST">
+                                                    <button type="submit" class="button button_addToCard">
+                                                        Make an offer
+                                                    </button>
+                                                </a>
+                                                </div>
+
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+            </div>
+        </div>
+    </div>
+
+</main>
+
+<div class="aboutMe">
+    <a href="https://codepen.io/BlackStar1991/pens/public/" target="_new">
+        <i class='fa fa-codepen'></i> my other Pens</a>
+</div>
+<script>
+
+
+
+    /*
+    I want to thank Paul Rudnitskiy for his idea.
+    If you need full work version you can download it here  https://github.com/BlackStar1991/CardProduct
+    */
+
+
+
+    window.onload = function () {
+
+        //// SLIDER
+        var slider = document.getElementsByClassName("sliderBlock_items");
+        var slides = document.getElementsByClassName("sliderBlock_items__itemPhoto");
+        var next = document.getElementsByClassName("sliderBlock_controls__arrowForward")[0];
+        var previous = document.getElementsByClassName("sliderBlock_controls__arrowBackward")[0];
+        var items = document.getElementsByClassName("sliderBlock_positionControls")[0];
+        var currentSlideItem = document.getElementsByClassName("sliderBlock_positionControls__paginatorItem");
+
+        var currentSlide = 0;
+
+        // Display the first slide immediately
+        slides[currentSlide].className = 'sliderBlock_items__itemPhoto sliderBlock_items__showing';
+        items.children[currentSlide].className = 'sliderBlock_positionControls__paginatorItem sliderBlock_positionControls__active';
+
+        // Start the interval after displaying the first slide
+        var slideInterval = setInterval(nextSlide, 5000);  /// Delay time of slides
+
+        function nextSlide() {
+            goToSlide(currentSlide + 1);
+        }
+
+        function previousSlide() {
+            goToSlide(currentSlide - 1);
+        }
+
+        function goToSlide(n) {
+            slides[currentSlide].className = 'sliderBlock_items__itemPhoto';
+            items.children[currentSlide].className = 'sliderBlock_positionControls__paginatorItem';
+            currentSlide = (n + slides.length) % slides.length;
+            slides[currentSlide].className = 'sliderBlock_items__itemPhoto sliderBlock_items__showing';
+            items.children[currentSlide].className = 'sliderBlock_positionControls__paginatorItem sliderBlock_positionControls__active';
+        }
+
+        next.onclick = function () {
+            nextSlide();
+        };
+        previous.onclick = function () {
+            previousSlide();
+        };
+
+        function goToSlideAfterPushTheMiniBlock() {
+            for (var i = 0; i < currentSlideItem.length; i++) {
+                currentSlideItem[i].onclick = function (i) {
+                    var index = Array.prototype.indexOf.call(currentSlideItem, this);
+                    goToSlide(index);
+                }
+            }
+        }
+
+        goToSlideAfterPushTheMiniBlock();
+
+
+
+/////////////////////////////////////////////////////////
+
+///// Specification Field
+
+
+        var buttonFullSpecification = document.getElementsByClassName("block_specification")[0];
+        var buttonSpecification = document.getElementsByClassName("block_specification__specificationShow")[0];
+        var buttonInformation = document.getElementsByClassName("block_specification__informationShow")[0];
+
+        var blockCharacteristiic = document.querySelector(".block_descriptionCharacteristic");
+        var activeCharacteristic = document.querySelector(".block_descriptionCharacteristic__active");
+
+
+        buttonFullSpecification.onclick = function () {
+
+            console.log("OK");
+
+
+            buttonSpecification.classList.toggle("hide");
+            buttonInformation.classList.toggle("hide");
+
+
+            blockCharacteristiic.classList.toggle("block_descriptionCharacteristic__active");
+
+
+        };
+
+
+/////  QUANTITY ITEMS
+
+        var up = document.getElementsByClassName('block_quantity__up')[0],
+            down = document.getElementsByClassName('block_quantity__down')[0],
+            input = document.getElementsByClassName('block_quantity__number')[0];
+
+        function getValue() {
+            return parseInt(input.value);
+        }
+
+        up.onclick = function (event) {
+            input.value = getValue() + 1;
+        };
+        down.onclick = function (event) {
+            if (input.value <= 1) {
+                return 1;
+            } else {
+                input.value = getValue() - 1;
+            }
+
+        }
+
+
+    };
+</script>
+{% endblock %}

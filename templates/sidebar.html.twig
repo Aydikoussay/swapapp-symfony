@@ -1,0 +1,150 @@
+<style>
+
+
+
+    .sidebar {
+        width: 60px;
+        transition: width 0.3s;
+        flex-shrink: 0;
+        height: calc(100vh - 56px); /* Adjust for navbar height if present */
+        position: fixed;
+        top: 56px; /* Offset for navbar */
+        background-color: #343a40;
+        overflow-x: hidden;
+    }
+
+    .sidebar:hover {
+        width: 200px;
+
+    }
+
+    .sidebar-logo {
+        height: 80px;
+        overflow: hidden;
+    }
+
+    .sidebar-logo .logo {
+        max-width: 50px;
+        max-height: 50px;
+        transition: max-width 0.3s, max-height 0.3s;
+    }
+
+    .sidebar:hover .logo {
+        max-width: 80px;
+        max-height: 80px;
+    }
+
+    .nav-link {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        white-space: nowrap;
+        transition: color 0.3s;
+    }
+
+    .nav-link i {
+        font-size: 1.5rem;
+    }
+
+    .nav-link span {
+        font-size: 1rem;
+        opacity: 0;
+        transition: opacity 0.3s, transform 0.3s;
+        transform: translateX(-10px);
+    }
+
+    .sidebar:hover .nav-link span {
+        opacity: 1;
+        transform: translateX(0);
+    }
+
+</style>
+<head><link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet"></head>
+<div class="d-flex">
+    <!-- Sidebar -->
+    <nav class="sidebar bg-dark">
+
+
+        <!-- Navigation Links -->
+        <ul class="nav flex-column">
+            {% if  is_granted('ROLE_ADMIN') %}
+
+                <li class="nav-item">
+                    <a class="nav-link text-white d-flex align-items-center" href="{{ path('chart') }}">
+                        <i class="bi bi-speedometer2"></i>
+                        <span class="d-none d-md-inline">Dashboard</span>
+                    </a>
+                </li> {% endif %}
+            <li class="nav-item">
+                <a class="nav-link text-white d-flex align-items-center" href="{{ path('app_user_edit') }}">
+                    <i class="bi bi-person"></i>
+                    <span class="d-none d-md-inline">Profile </span>
+                </a>
+            </li>
+            {% if not is_granted('ROLE_ADMIN') %}
+            <li class="nav-item">
+                <a class="nav-link text-white d-flex align-items-center" href="{{ path('app_article_mine') }}">
+                    <i class="bi bi-basket"></i>
+                    <span class="d-none d-md-inline">My articles </span>
+                </a>
+            </li>    {% endif %}
+            {% if not is_granted('ROLE_ADMIN') %}
+
+            <li class="nav-item">
+                <a class="nav-link text-white d-flex align-items-center" href="{{ path('app_request_made') }}">
+                    <i class="bi bi-arrow-repeat"></i>
+                    <span class="d-none d-md-inline">Requests Made</span>
+                </a>
+            </li>             {% endif %}
+            {% if not is_granted('ROLE_ADMIN') %}
+
+            <li class="nav-item">
+                <a class="nav-link text-white d-flex align-items-center" href="{{ path('app_request_received') }}">
+                    <i class="bi bi-caret-down-fill"></i>
+                    <span class="d-none d-md-inline">Requests Received</span>
+                </a>
+            </li> {% endif %}
+            {% if  is_granted('ROLE_ADMIN') %}
+
+                <li class="nav-item">
+                    <a class="nav-link text-white d-flex align-items-center" href="{{ path('app_user_index') }}">
+                        <i class="bi bi-people-fill"></i>
+                        <span class="d-none d-md-inline">list users </span>
+                    </a>
+                </li> {% endif %}
+
+            {% if  is_granted('ROLE_ADMIN') %}
+
+                <li class="nav-item">
+                    <a class="nav-link text-white d-flex align-items-center" href="{{ path('app_request_index') }}">
+                        <i class="bi bi-card-list"></i>
+                        <span class="d-none d-md-inline">ALL requests </span>
+                    </a>
+                </li> {% endif %}
+
+            {% if  is_granted('ROLE_ADMIN') %}
+
+                <li class="nav-item">
+                    <a class="nav-link text-white d-flex align-items-center" href="{{ path('app_cat_index') }}">
+                        <i class="bi bi-tags"></i>
+                        <span class="d-none d-md-inline">Manage categorie </span>
+                    </a>
+                </li> {% endif %}
+            {% if  is_granted('ROLE_ADMIN') %}
+
+                <li class="nav-item">
+                    <a class="nav-link text-white d-flex align-items-center" href="{{ path('app_article_index') }}">
+                        <i class="bi bi-cart-check-fill"></i>
+                        <span class="d-none d-md-inline">All Articles </span>
+                    </a>
+                </li> {% endif %}
+
+
+
+
+
+
+
+        </ul>
+    </nav>
+</div>

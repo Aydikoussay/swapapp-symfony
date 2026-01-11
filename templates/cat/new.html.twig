@@ -1,0 +1,18 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Create New Category{% endblock %}
+
+{% block body %}
+    <h1>Create New Category</h1>
+
+    {{ form_start(form, { 'attr': { 'class': 'form-container' } }) }}
+    <div class="form-group">
+        {{ form_label(form.name, 'Category Name', { 'label_attr': { 'class': 'form-label' } }) }}
+        {{ form_widget(form.name, { 'attr': { 'class': 'form-control', 'placeholder': 'Enter category name' } }) }}
+        {{ form_errors(form.name) }}
+    </div>
+
+    <button type="submit" class="btn btn-primary">Save</button>
+    <a href="{{ path('app_cat_index') }}" class="btn btn-secondary">Cancel</a>
+    {{ form_end(form) }}
+{% endblock %}

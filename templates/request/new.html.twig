@@ -1,0 +1,11 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}New Request{% endblock %}
+
+{% block body %}
+    <h1>Create new Request</h1>
+
+    {{ include('request/_form.html.twig') }}
+
+    <a href="javascript:void(0);" onclick="window.history.back();" class="btn btn-secondary">Go Back</a>
+    {% endblock %}

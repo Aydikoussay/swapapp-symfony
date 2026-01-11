@@ -1,0 +1,171 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}New Article{% endblock %}
+
+{% block body %}
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+
+    <style>
+
+        body {
+            background-image: url('{{ asset('images/Design sans titre(5).png') }}');
+            background-size: cover;
+            background-attachment: fixed;
+            background-position: center;}
+        .form-container {
+            padding: 20px;
+        }
+
+        .image-preview-frame {
+            width: 120px;
+            height: 120px;
+            border: 2px dashed #ddd;
+            border-radius: 5px;
+            background-color: #f8f9fa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            margin-bottom: 10px;
+            cursor: pointer;
+        }
+
+        .image-preview-frame:hover {
+            border-color: #007bff;
+        }
+
+        .hidden-file-input {
+            display: none;
+        }
+
+        .upload-label {
+            font-size: 24px;
+            color: #007bff;
+            cursor: pointer;
+            margin: 0;
+        }
+
+        .remove-btn {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        .remove-btn:hover {
+            background-color: #c0392b;
+        }
+
+        .add-photo-btn {
+            margin-top: 15px;
+            padding: 10px 15px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .add-photo-btn:hover {
+            background-color: #218838;
+        }
+    </style>
+
+    <div class="form-container">
+        {{ form_start(form, {'attr': {'id': 'articleForm', 'enctype': 'multipart/form-data'}}) }}
+
+        <div class="row g-4">
+            <div class="col-md-7">
+                <div class="form-section">
+                    <h3>General Information</h3>
+                    {{ form_row(form.titre, {'attr': {'class': 'form-control'}}) }}
+                    {{ form_row(form.description, {'attr': {'class': 'form-control'}}) }}
+                    {{ form_row(form.conditionarticle, {'attr': {'class': 'form-control'}}) }}
+                    {{ form_row(form.categorie, {'attr': {'class': 'form-control'}}) }}
+                </div>
+                <button type="submit" class="btn btn-primary btn-submit">Submit</button>
+            </div>
+
+            <div class="col-md-5">
+                <div class="form-section">
+                    <h3>Upload Photos</h3>
+                    <div id="photoUploads">
+                        <div class="image-preview-frame position-relative" id="photoUpload1">
+                            <input type="file" id="photo1" name="photo1" class="hidden-file-input" onchange="previewPhoto(this, 1)">
+                            <label for="photo1" class="upload-label">+</label>
+                            <button type="button" class="remove-btn" onclick="removePhoto(1)" style="display: none;">&times;</button>
+                        </div>
+                    </div>
+                    <button type="button" class="add-photo-btn" id="addPhotoButton" onclick="addPhoto()">Add Another Photo</button>
+                </div>
+            </div>
+        </div>
+
+        {{ form_end(form) }}
+    </div>
+
+    <script>
+        let photoCount = 1;
+        const maxPhotos = 3;
+
+        // Function to add a new photo upload field
+        function addPhoto() {
+            if (photoCount < maxPhotos) {
+                photoCount++;
+                const photoUploads = document.getElementById('photoUploads');
+                const newUpload = document.createElement('div');
+                newUpload.classList.add('image-preview-frame', 'position-relative');
+                newUpload.id = `photoUpload${photoCount}`;
+                newUpload.innerHTML = `
+                <input type="file" id="photo${photoCount}" name="photo${photoCount}" class="hidden-file-input" onchange="previewPhoto(this, ${photoCount})">
+                <label for="photo${photoCount}" class="upload-label">+</label>
+                <button type="button" class="remove-btn" onclick="removePhoto(${photoCount})" style="display: none;">&times;</button>
+            `;
+                photoUploads.appendChild(newUpload);
+            } else {
+                alert('You can upload a maximum of 3 photos.');
+            }
+        }
+
+        // Function to preview the uploaded photo
+        function previewPhoto(input, index) {
+            const file = input.files[0];
+            const previewFrame = document.getElementById(`photoUpload${index}`);
+            const removeBtn = previewFrame.querySelector('.remove-btn');
+            const label = previewFrame.querySelector('.upload-label');
+
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    previewFrame.style.backgroundImage = `url(${e.target.result})`;
+                    previewFrame.style.backgroundSize = 'cover';
+                    previewFrame.style.backgroundPosition = 'center';
+                    label.style.display = 'none'; // Hide the "+" label
+                    removeBtn.style.display = 'block'; // Show the remove button
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        // Function to remove a photo field
+        function removePhoto(index) {
+            const photoUpload = document.getElementById(`photoUpload${index}`);
+            if (photoUpload) {
+                photoUpload.remove();
+                photoCount--;
+            }
+        }
+    </script>
+
+{% endblock %}

@@ -1,0 +1,75 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Edit Categorie{% endblock %}
+
+{% block body %}
+    <div class="container">
+        <h1 class="title">Edit Categorie</h1>
+
+        <div class="form-container">
+            {{ include('cat/_form.html.twig', {'button_label': 'Update'}) }}
+        </div>
+
+        <div class="actions">
+            <a href="{{ path('app_cat_index') }}" class="btn btn-back">Back to list</a>
+        </div>
+
+        <div class="delete-form">
+            {{ include('cat/_delete_form.html.twig') }}
+        </div>
+    </div>
+{% endblock %}
+
+{% block stylesheets %}
+    <style>
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+        }
+
+        .title {
+            font-size: 28px;
+            color: #333;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .form-container {
+            margin-bottom: 30px;
+        }
+
+        .actions {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 4px;
+            font-size: 16px;
+            text-decoration: none;
+            display: inline-block;
+            margin: 0 10px;
+        }
+
+        .btn-back {
+            background-color: #007BFF;
+            color: #fff;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+        }
+
+        .delete-form {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .delete-form form {
+            display: inline-block;
+        }
+    </style>
+{% endblock %}

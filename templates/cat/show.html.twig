@@ -1,0 +1,109 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Categorie{% endblock %}
+
+{% block body %}
+    <div class="container">
+        <h1 class="title">Categorie Details</h1>
+
+        <div class="categorie-details">
+            <table class="table">
+                <tbody>
+                <tr>
+                    <th>ID</th>
+                    <td>{{ categorie.id }}</td>
+                </tr>
+                <tr>
+                    <th>Name</th>
+                    <td>{{ categorie.name }}</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="actions">
+            <a href="{{ path('app_cat_index') }}" class="btn btn-back">Back to list</a>
+            <a href="{{ path('app_cat_edit', {'id': categorie.id}) }}" class="btn btn-edit">Edit</a>
+        </div>
+
+        <div class="delete-form">
+            {{ include('cat/_delete_form.html.twig') }}
+        </div>
+    </div>
+{% endblock %}
+
+{% block stylesheets %}
+    <style>
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+        }
+
+        .title {
+            font-size: 28px;
+            color: #333;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .categorie-details {
+            margin-bottom: 30px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 16px;
+        }
+
+        table th,
+        table td {
+            padding: 12px;
+            border: 1px solid #ddd;
+        }
+
+        table th {
+            background-color: #f4f4f4;
+            font-weight: bold;
+        }
+
+        .actions {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 4px;
+            font-size: 16px;
+            text-decoration: none;
+            display: inline-block;
+            margin: 0 10px;
+        }
+
+        .btn-back {
+            background-color: #007BFF;
+            color: #fff;
+        }
+
+        .btn-edit {
+            background-color: #FFA500;
+            color: #fff;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+        }
+
+        .delete-form {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .delete-form form {
+            display: inline-block;
+        }
+    </style>
+{% endblock %}
