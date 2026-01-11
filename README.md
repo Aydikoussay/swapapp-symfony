@@ -17,7 +17,7 @@ Avant d'installer le projet, assurez-vous d'avoir les outils suivants installés
 ### 1. Cloner le repository
 
 ```bash
-git clone https://github.com/votre-utilisateur/swapapp.git
+git clone https://github.com/Aydikoussay/swapapp.git
 cd swapapp
 ```
 
