@@ -137,6 +137,3 @@ php bin/phpunit
 
 Pour la production, configurez les variables d'environnement, compilez les assets avec `npm run build`, et utilisez un serveur web comme Apache ou Nginx.
 
-## Licence
-
-Ce projet est sous licence [MIT](LICENSE).
