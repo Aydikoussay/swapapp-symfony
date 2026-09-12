@@ -302,14 +302,21 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build image (job-local copy; jobs don't share Docker daemon)
         run: docker build -t ${{ env.IMAGE_NAME }} -f Dockerfile .
-      - name: Trivy SARIF (for Security tab)
-        uses: aquasecurity/trivy-action@0.24.0
-        with:
-          image-ref: ${{ env.IMAGE_NAME }}
-          format: sarif
-          output: trivy.sarif
-          severity: HIGH,CRITICAL
-          exit-code: "0" # gate (job 11) decides pass/fail so artifacts always upload
+      - name: Install Trivy CLI (no action pin — always latest)
+        # NOTE: aquasecurity/trivy-action@0.24.0 was removed upstream and broke
+        # the workflow at "Prepare all required actions". CLI install avoids
+        # pinned-action rot forever.
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh -o install-trivy.sh
+          sudo sh install-trivy.sh -b /usr/local/bin || sh install-trivy.sh -b $HOME/.local/bin
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          trivy --version
+      - name: Trivy SARIF (for Security tab, never fails here)
+        # exit-code 0 + `|| true`: SARIF/reporting must not block artifacts;
+        # the JSON step below owns the red/green verdict.
+        run: |
+          trivy image --severity HIGH,CRITICAL --format sarif --output trivy.sarif ${{ env.IMAGE_NAME }} || true
+          ls -la trivy.sarif
       - name: Trivy JSON + table (for gate + artifact, FAILS on HIGH/CRITICAL)
         # --exit-code 1 = this step (and job) turns RED when HIGH/CRITICAL
         # CVEs exist in the image. That is the intended demo behavior: the
@@ -317,7 +324,6 @@ jobs:
         # first run. Reports still upload thanks to `if: always()` below,
         # and the gate (job 11) repeats the verdict for the teacher.
         run: |
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
           trivy image --severity HIGH,CRITICAL --exit-code 1 --format json --output trivy.json ${{ env.IMAGE_NAME }} || echo "TRIVY_FOUND=true" >> $GITHUB_ENV
           trivy image --severity HIGH,CRITICAL --format table ${{ env.IMAGE_NAME }} || true
           ls -la trivy.*
