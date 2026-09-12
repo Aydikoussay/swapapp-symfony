@@ -72,12 +72,14 @@ push/PR ─▶ 1 setup ─▶ 2 lint ─▶ 3 Semgrep ─▶ 4 Gitleaks ─▶ 5
 ### F1 — CRITICAL: `.env` committed with live-looking secrets
 
 - **Files:** `.env` (tracked by git), lines 19–29.
-- **Leaked values:**
-  - `APP_SECRET=9366e30e1018e334d0830ebbce69fe2d` (Symfony signing/ CSRF secret)
-  - `MAILER_DSN=smtp://agrebi3aziz@gmail.com:kgysglrqngltychn@smtp.gmail.com:587` (Gmail username + app-password)
-  - `DATABASE_URL="mysql://root:@127.0.0.1:3306/swapapps?..."` (root, no password)
+- **Leaked values** (masked here so this doc stays green — full values in `.env`):
+  - `APP_SECRET=<redacted>` — 32-hex Symfony signing/CSRF secret (`.env` line 19)
+  - `MAILER_DSN=smtp://<credentials>@smtp.gmail.com:587` — Gmail username + app-password (`.env` line 21)
+  - `DATABASE_URL="mysql://<see .env line 29>"` — MySQL root with EMPTY password
 - **Why it matters:** anyone with repo read access owns the mail account, can forge sessions/CSRF tokens, and learns DB topology. Git history keeps secrets forever even if later deleted.
-- **Caught by:** job 4 Gitleaks (expect `.env` hits in `gitleaks.json`), job 3 Semgrep generic-secrets rules may also flag it.
+- **Caught by:** job 4 Gitleaks with the extended `gitleaks.toml` (see lesson below). Run #8 gate output: `7 leak(s)` = 3× `.env` (APP_SECRET L19, MAILER_DSN L21, DATABASE_URL L29) + 3× this doc's first draft (which quoted the secrets verbatim — self-inflicted, fixed by masking) + 1× `README.md` example URL.
+- **Lesson — scanners need tuning:** with DEFAULT Gitleaks rules the same scan scored **0 leaks** and the gate silently passed the secrets check. Default generic rules don't cover Symfony env conventions (hex APP_SECRET, MAILER_DSN/DATABASE_URL URIs), so we added 3 `symfony-*` rules in `gitleaks.toml` (`[extend] useDefault = true` keeps all defaults). Verified locally with the Gitleaks 8.18 binary before pushing.
+- **Lesson — history never forgets:** the 3 doc-quote leaks live in commit `2c794d7` and the README quote in the original commit — masking the files does NOT clear history. That's why R1 (rotation) comes first and the AFTER demo needs the `filter-repo` purge in R3.
 - **Note:** `.env.test` also contains `APP_SECRET='$ecretf0rt3st'` — test-only, low risk, but listed for completeness.
 
 ### F2 — HIGH (hygiene/supply-chain): `composer.phar` + `composer_2.phar` committed (~6 MB)
@@ -90,14 +92,15 @@ push/PR ─▶ 1 setup ─▶ 2 lint ─▶ 3 Semgrep ─▶ 4 Gitleaks ─▶ 5
 
 - Current `.gitignore` ignores `.env.local` / `.env.*.local` (good) but NOT `.env` itself, and has no `*.phar` rule — which is exactly how F1/F2 happened. Remediation snippet in §4.
 
-### F4 — TBD on first green run: SCA / Trivy / ZAP output
+### F4 — Run #8 real numbers (fill-in completed)
 
-- `composer audit`, `npm audit`, Trivy and ZAP results depend on the advisory DB at run time. After pushing, paste the counts here:
-  - `composer audit` advisories: __ (see `sca-reports/composer-audit.json`)
-  - `npm audit` high/critical: __ (see `sca-reports/npm-audit.json`)
-  - Trivy HIGH/CRITICAL: __ (see `container-trivy-reports/trivy.json`)
-  - ZAP alerts (HIGH/MEDIUM): __ (see `dast-zap-reports/report_html.html`)
-- The gate (job 11) will already be red from F1 alone; F4 determines how much dependency upgrading the "after" state needs.
+- Results from Security Pipeline #8 (12 Sep 2026, pre-remediation):
+  - Semgrep SAST: **0 findings** (`sast-semgrep-reports/semgrep.json`) — no auditable pattern hit in `src/`/`config/`/`public/`.
+  - `composer audit`: **report EMPTY** (0 bytes → gate logged "skip"). Root cause under investigation (version/lock diagnostics added to job 5); gate is now STRICT — a missing/unparseable report fails the build instead of skipping silently.
+  - `npm audit` high/critical: **11** (`sca-reports/npm-audit.json`).
+  - Trivy HIGH/CRITICAL: **928** (`container-trivy-reports/trivy.json`) — expected: `php:8.1-apache` base is past security support, so the OS layer alone carries hundreds of CVEs. AFTER remediation starts with bumping the base image (`php:8.2/8.3-apache`).
+  - ZAP baseline: **31 URLs, all checks PASS** — yet job 9 went RED on a pure infra bug: the action's default `artifact_name: zap_scan` is rejected by the GH artifact API. Fixed with `artifact_name: dast-zap-scan` (job 9 uploads its own reports; see workflow comment).
+- The gate (job 11) is red from F1 + npm + Trivy combined; F4 sizes the AFTER dependency-upgrade work.
 
 ## 4. Remediation (do in this order; check boxes for grading)
 
@@ -179,7 +182,8 @@ pip install semgrep
 semgrep --config p/php --config p/ci src/ config/ public/
 
 # --- 4. secrets (download binary from github.com/gitleaks/gitleaks/releases) ---
-gitleaks detect --source . --verbose
+# IMPORTANT: pass --config gitleaks.toml — defaults alone score 0 leaks here.
+gitleaks detect --config gitleaks.toml --source . --verbose --redact
 
 # --- 5. SCA ---
 composer audit
@@ -213,14 +217,27 @@ Push as-is. Expected: jobs 4 (Gitleaks) and 11 (gate) red; SARIF alerts in Secur
 - `docs/screenshots/03-gate-failed.png` — gate log `::error::SECURITY GATE FAILED`
 - `docs/screenshots/04-security-tab.png` — Code scanning alerts (Semgrep/Gitleaks/Trivy)
 
-Expected gate excerpt (pre-remediation):
+Real gate excerpt (run #8, pre-remediation):
 
 ```
-Secrets (Gitleaks): N leak(s) — expect .env hits before remediation
+== SAST (Semgrep) ==
+  0 finding(s) in reports/sast-semgrep-reports/semgrep.json
+== Secrets (Gitleaks) ==
+  0 leak(s) in reports/secrets-gitleaks-reports/gitleaks.json   <- with DEFAULT rules (before gitleaks.toml)
+== SCA PHP (composer audit) ==
+  (skip reports/sca-reports/composer-audit.json: Expecting value: line 1 column 1 (char 0))
+== SCA JS (npm audit) ==
+  high+critical: 11 in reports/sca-reports/npm-audit.json
+== Container (Trivy) ==
+  928 HIGH/CRITICAL vuln(s) in reports/container-trivy-reports/trivy.json
+---
 FAILURES:
- - Secrets: N Gitleaks leak(s) — see .env remediation in docs
+ - SCA-JS: 11 npm high/critical
+ - Container: 928 Trivy HIGH/CRITICAL
 ::error::SECURITY GATE FAILED — high/critical issues block deployment.
 ```
+
+> After the `gitleaks.toml` fix, the Secrets line becomes `7 leak(s)` (3× `.env` + history quotes) and the composer line becomes a hard `REPORT UNPARSEABLE/MISSING` failure instead of a silent skip. Three debugging lessons from one run: tune your rules, fix artifact uploads, never skip silently.
 
 ### AFTER — pipeline PASSES after §4 remediation
 

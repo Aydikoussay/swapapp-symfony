@@ -38,10 +38,10 @@ cp .env .env.local
 Modifiez `.env.local` pour configurer la base de données :
 
 ```dotenv
-DATABASE_URL="mysql://root:@127.0.0.1:3306/swapapps?serverVersion=8.0&charset=utf8mb4"
+DATABASE_URL="mysql://app:!ChangeMe!@127.0.0.1:3306/swapapps?serverVersion=8.0&charset=utf8mb4"
 ```
 
-- Remplacez `root:` par votre utilisateur MySQL si différent.
+- Remplacez `app` / `!ChangeMe!` par vos identifiants MySQL (ne commitez jamais de vrais secrets).
 - Assurez-vous que MySQL est démarré.
 
 ### 4. Créer la base de données

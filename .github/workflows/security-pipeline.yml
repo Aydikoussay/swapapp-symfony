@@ -200,19 +200,21 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # full history so leaked secrets in ANY commit are found
-      - name: Gitleaks via official action
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Produce JSON + SARIF copies (artifacts + gate input)
-        if: always()
+      - name: Run Gitleaks (defaults + gitleaks.toml Symfony rules)
+        # NOTE: we use the CLI directly (not gitleaks-action) so BOTH the
+        # SARIF (Security tab) and JSON (gate) come from the SAME scan with
+        # our extended config. Default rules alone scored "0 leaks" on the
+        # committed .env — the 3 symfony-* rules in gitleaks.toml close that
+        # gap (verified locally: flags .env APP_SECRET/MAILER_DSN/DATABASE_URL).
+        # Scans history + tree (fetch-depth: 0 above): old commits stay
+        # flagged even after cleanup — that is correct, rotate per docs R1.
         run: |
           curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.18.0/gitleaks_8.18.0_linux_x64.tar.gz | tar xz
-          ./gitleaks detect --source . --report-format sarif --report-path gitleaks.sarif --exit-code 0 --verbose || true
-          ./gitleaks detect --source . --report-format json --report-path gitleaks.json --exit-code 0 --verbose || true
+          ./gitleaks detect --config gitleaks.toml --source . --report-format sarif --report-path gitleaks.sarif --exit-code 0 --verbose --redact || true
+          ./gitleaks detect --config gitleaks.toml --source . --report-format json --report-path gitleaks.json --exit-code 0 --verbose --redact || true
           echo "--- Gitleaks flagging committed secrets? (expect .env hits) ---"
-          cat gitleaks.json | head -c 3000; echo
-          ls -la gitleaks.*
+          python3 -c "import json; d=json.load(open('gitleaks.json')); print(len(d),'leak(s):'); [print('-',x['RuleID'],x['File'],'line',x['StartLine']) for x in d]"
+          ls -la gitleaks.* gitleaks.toml
       - name: Upload Gitleaks SARIF to Security tab
         if: always()
         uses: github/codeql-action/upload-sarif@v4
@@ -251,9 +253,13 @@ jobs:
       - name: PHP SCA — composer audit
         # Exits non-zero when advisories exist; we capture that in COMPOSER_VULNS
         # and keep going so BOTH reports are always uploaded, gate decides fail.
+        # DIAGNOSTICS FIRST: run #8 produced an EMPTY composer-audit.json
+        # (gate "skip") — version/lock output below tells us why if it recurs.
         run: |
-          composer audit --format=json > composer-audit.json || echo "COMPOSER_VULNS=true" >> $GITHUB_ENV
-          cat composer-audit.json || true
+          composer --version
+          composer validate --no-check-publish || true
+          composer audit --format=json --no-interaction > composer-audit.json || echo "COMPOSER_VULNS=true" >> $GITHUB_ENV
+          cat composer-audit.json || echo "(composer-audit.json empty or missing)"
           ls -la composer-audit.json
           if [ "$COMPOSER_VULNS" = "true" ]; then echo "::warning::composer audit found advisories (see artifact; gate will FAIL)."; fi
       - name: JS SCA — npm audit
@@ -400,6 +406,10 @@ jobs:
           target: http://localhost:8000
           allow_issue_writing: false # don't file GitHub issues; reports only
           fail_action: false         # informational; gate decides
+          # BUGFIX: the action's default artifact_name "zap_scan" is rejected
+          # by the GH artifact API ("not valid" — run #8 went red AFTER a
+          # fully-passing scan: 31 URLs, all PASS). Hyphenated name works.
+          artifact_name: dast-zap-scan
       - name: Collect logs (always, even if ZAP finds alerts)
         if: always()
         run: |
@@ -473,26 +483,38 @@ jobs:
           python3 - <<'PY'
           import json, glob, os, sys
           failures = []
+          # STRICT MODE (lesson from run #8): a missing/unparseable report is
+          # a FAILURE, not a silent "skip" — an invisible scanner is worse
+          # than a red one. Every check below must find exactly 1 report.
+          def need(pattern):
+              fs = glob.glob(pattern)
+              if len(fs) != 1:
+                  failures.append(f"REPORT MISSING: expected 1x {pattern}, found {len(fs)}")
+                  return []
+              return fs
           def load(p):
               try: return json.load(open(p))
-              except Exception as e: print(f"  (skip {p}: {e})"); return None
+              except Exception as e:
+                  failures.append(f"REPORT UNPARSEABLE: {p} ({e})")
+                  return None
           print("== SAST (Semgrep) ==")
-          for f in glob.glob("reports/sast-semgrep-reports/semgrep.json"):
+          for f in need("reports/sast-semgrep-reports/semgrep.json"):
               d = load(f)
               if d is not None:
                   n = len(d.get("results", [])); print(f"  {n} finding(s) in {f}")
                   if n: failures.append(f"SAST: {n} Semgrep finding(s)")
           print("== Secrets (Gitleaks) ==")
-          for f in glob.glob("reports/secrets-gitleaks-reports/gitleaks.json"):
+          for f in need("reports/secrets-gitleaks-reports/gitleaks.json"):
               try:
                   raw = open(f).read().strip()
                   d = json.loads(raw) if raw else []
                   n = len(d) if isinstance(d, list) else 1
-              except Exception as e: print(f"  (skip: {e})"); continue
+              except Exception as e:
+                  failures.append(f"REPORT UNPARSEABLE: {f} ({e})"); continue
               print(f"  {n} leak(s) in {f}  <- expect .env hits before remediation")
               if n: failures.append(f"Secrets: {n} Gitleaks leak(s) — see .env remediation in docs")
           print("== SCA PHP (composer audit) ==")
-          for f in glob.glob("reports/sca-reports/composer-audit.json"):
+          for f in need("reports/sca-reports/composer-audit.json"):
               d = load(f)
               if d is not None:
                   adv = d.get("advisories", d.get("vulnerabilities", []))
@@ -500,7 +522,7 @@ jobs:
                   print(f"  {n} advisorie(s) in {f}")
                   if n: failures.append(f"SCA-PHP: {n} composer advisorie(s)")
           print("== SCA JS (npm audit) ==")
-          for f in glob.glob("reports/sca-reports/npm-audit.json"):
+          for f in need("reports/sca-reports/npm-audit.json"):
               d = load(f)
               if d is not None:
                   meta = d.get("metadata", {}).get("vulnerabilities", {})
@@ -508,7 +530,7 @@ jobs:
                   print(f"  high+critical: {n} in {f}")
                   if n: failures.append(f"SCA-JS: {n} npm high/critical")
           print("== Container (Trivy) ==")
-          for f in glob.glob("reports/container-trivy-reports/trivy.json"):
+          for f in need("reports/container-trivy-reports/trivy.json"):
               d = load(f)
               if d is not None:
                   n = sum(len(r.get("Vulnerabilities") or []) for r in d.get("Results", []))

@@ -1,0 +1,59 @@
+# =====================================================================
+# swapapp-symfony — Gitleaks config (NEW file, app logic untouched)
+# ---------------------------------------------------------------------
+# WHY THIS FILE EXISTS:
+#   Gitleaks' DEFAULT rules missed the committed `.env` (gate showed
+#   "0 leaks"): default generic rules don't cover Symfony env conventions
+#   (APP_SECRET hex strings, MAILER_DSN/DATABASE_URL URIs). Extending with
+#   project-specific rules is STANDARD Gitleaks practice, not cheating —
+#   every org tunes the scanner to its stack. The tuning itself is part
+#   of the DevSecOps writeup (docs/DEVSECOPS.md, findings F1).
+#
+# HOW IT WORKS:
+#   `[extend] useDefault = true` keeps ALL default rules; the 3 rules
+#   below ADD Symfony coverage. Global allowlist ignores comment lines
+#   (`# ...`) and documents placeholder shapes so the fixed template
+#   (.env.example) stays green after remediation.
+#   Regex flavor is Go RE2 (no lookaheads) — keep patterns simple.
+# =====================================================================
+
+title = "swapapp-symfony extended config"
+
+[extend]
+useDefault = true
+
+# --- Rule 1: Symfony APP_SECRET with a real committed value ------------
+[[rules]]
+id = "symfony-app-secret"
+description = "Symfony APP_SECRET committed with a real value (rotate it, move to env/secrets vault)"
+# Matches: APP_SECRET=<16+ alnum/_/- chars>, quoted or not.
+# Skips: ${APP_SECRET}, %env(APP_SECRET)% (too short / special chars break the 16+ run)
+regex = '''APP_SECRET\s*=\s*['"]?[A-Za-z0-9_\-]{16,}['"]?'''
+tags = ["symfony", "secret"]
+
+# --- Rule 2: MAILER_DSN with embedded credentials -----------------------
+[[rules]]
+id = "symfony-mailer-dsn"
+description = "MAILER_DSN committed with embedded user/password (rotate it, use GitHub Actions secrets)"
+# Matches: MAILER_DSN=<scheme>://<user>:<pass>@<host...> — password may be empty-safe via [^/@]* below.
+regex = '''MAILER_DSN\s*=\s*['"]?\S+://[^/\s:]+:[^/\s@]*@\S+'''
+tags = ["symfony", "secret"]
+
+# --- Rule 3: DATABASE_URL with embedded credentials ---------------------
+[[rules]]
+id = "symfony-database-url"
+description = "DATABASE_URL committed with embedded user/password (rotate it, use GitHub Actions secrets)"
+# Matches even user with EMPTY password (mysql://root:@host...), which is itself a finding.
+regex = '''DATABASE_URL\s*=\s*['"]?\S+://[^/\s:]+:[^/\s@]*@\S+'''
+tags = ["symfony", "secret"]
+
+# --- Global allowlist: comments + placeholder shapes --------------------
+[allowlist]
+description = "Ignore commented lines and documented placeholder shapes"
+regexTarget = "line"
+regexes = [
+  '''^\s*#''',            # full-line comments (# DATABASE_URL="sqlite..." examples)
+  '''\$\{[A-Z_]+\}''',    # ${APP_SECRET} style placeholders
+  '''%env\([^)]*\)%''',   # %env(APP_SECRET)% style placeholders
+  '''ChangeMe''',         # !ChangeMe! / ChangeMe documented defaults
+]
