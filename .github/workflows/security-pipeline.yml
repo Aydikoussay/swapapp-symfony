@@ -385,8 +385,11 @@ jobs:
   # 9. DAST — OWASP ZAP baseline scan attacks the RUNNING app (black-box:
   #    XSS, missing headers, exposed paths...). Starts swapapp:ci on
   #    localhost:8000, waits for HTTP 200, scans, then always stops the
-  #    container. fail_action:false = informational; gate (11) owns pass/fail
-  #    so one flaky ZAP rule can't hide SAST/SCA failures.
+  #    container. Informational (`|| true`); gate (11) owns pass/fail so one
+  #    flaky ZAP rule can't hide SAST/SCA failures.
+  #    NOTE: the image boots with a sqlite file DB (see Dockerfile ENV), so
+  #    `/` renders real pages. Without it the app 500s (no DB server in CI)
+  #    and ZAP only scans Symfony error pages — lesson from run #9.
   # --------------------------------------------------------------------------
   dast-zap:
     name: "9. DAST (OWASP ZAP baseline)"
@@ -400,16 +403,21 @@ jobs:
           docker run -d --name swapapp -p ${{ env.APP_PORT }}:80 ${{ env.IMAGE_NAME }}
           for i in $(seq 1 30); do curl -sf http://localhost:${{ env.APP_PORT }}/ && break || sleep 5; done
           curl -s -o /dev/null -w "HTTP %{http_code}\n" http://localhost:${{ env.APP_PORT }}/ || docker logs swapapp
-      - name: ZAP baseline scan
-        uses: zaproxy/action-baseline@v0.12.0
-        with:
-          target: http://localhost:8000
-          allow_issue_writing: false # don't file GitHub issues; reports only
-          fail_action: false         # informational; gate decides
-          # BUGFIX: the action's default artifact_name "zap_scan" is rejected
-          # by the GH artifact API ("not valid" — run #8 went red AFTER a
-          # fully-passing scan: 31 URLs, all PASS). Hyphenated name works.
-          artifact_name: dast-zap-scan
+      - name: ZAP baseline scan (direct docker CLI, no GH action)
+        # WHY NOT zaproxy/action-baseline@v0.12.0: its built-in artifact
+        # upload uses the RETIRED artifact API — runs #8 AND #9 went red
+        # AFTER fully-passing scans ("zap_scan is not valid", then
+        # "dast-zap-scan is not valid": ANY name fails, the uploader itself
+        # is broken). Same scanner, same flags, direct `docker run` gives
+        # identical reports; OUR upload-artifact@v4 step below stores them
+        # (v4 works — see the 6 artifacts on every run).
+        # `|| true`: DAST is informational here; the gate (job 11) owns red/green.
+        run: |
+          docker run --rm -v "$(pwd):/zap/wrk/:rw" --network=host \
+            -t ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py -t http://localhost:8000 \
+              -J report_json.json -w report_md.md -r report_html.html || true
+          ls -la report_* || true
       - name: Collect logs (always, even if ZAP finds alerts)
         if: always()
         run: |
