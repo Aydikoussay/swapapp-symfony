@@ -171,7 +171,7 @@ jobs:
           ls -la semgrep.*
       - name: Upload SARIF to Security tab (Code scanning)
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: semgrep.sarif
           category: semgrep
@@ -215,7 +215,7 @@ jobs:
           ls -la gitleaks.*
       - name: Upload Gitleaks SARIF to Security tab
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: gitleaks.sarif
           category: gitleaks
@@ -310,15 +310,21 @@ jobs:
           output: trivy.sarif
           severity: HIGH,CRITICAL
           exit-code: "0" # gate (job 11) decides pass/fail so artifacts always upload
-      - name: Trivy JSON + table (for gate + artifact)
+      - name: Trivy JSON + table (for gate + artifact, FAILS on HIGH/CRITICAL)
+        # --exit-code 1 = this step (and job) turns RED when HIGH/CRITICAL
+        # CVEs exist in the image. That is the intended demo behavior: the
+        # requested php:8.1-apache base + old Symfony deps WILL have CVEs on
+        # first run. Reports still upload thanks to `if: always()` below,
+        # and the gate (job 11) repeats the verdict for the teacher.
         run: |
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
-          trivy image --severity HIGH,CRITICAL --format json --output trivy.json ${{ env.IMAGE_NAME }} || echo "TRIVY_FOUND=true" >> $GITHUB_ENV
+          trivy image --severity HIGH,CRITICAL --exit-code 1 --format json --output trivy.json ${{ env.IMAGE_NAME }} || echo "TRIVY_FOUND=true" >> $GITHUB_ENV
           trivy image --severity HIGH,CRITICAL --format table ${{ env.IMAGE_NAME }} || true
           ls -la trivy.*
+          if [ "$TRIVY_FOUND" = "true" ]; then echo "::warning::Trivy found HIGH/CRITICAL CVEs (see artifact)."; exit 1; fi
       - name: Upload Trivy SARIF to Security tab
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy.sarif
           category: trivy
