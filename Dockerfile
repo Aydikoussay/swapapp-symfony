@@ -20,8 +20,8 @@ FROM php:8.1-apache
 # because .env uses MySQL while compose.yaml ships Postgres — the
 # image supports both so CI works either way).
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git unzip libicu-dev libzip-dev libonig-dev \
-    && docker-php-ext-install ctype iconv intl mbstring mysqli pdo pdo_mysql pdo_pgsql zip opcache \
+    git unzip libicu-dev libzip-dev libonig-dev libpq-dev \
+    && docker-php-ext-install intl mbstring mysqli pdo pdo_mysql pdo_pgsql zip opcache \
     && a2enmod rewrite \
     && rm -rf /var/lib/apt/lists/*
 
