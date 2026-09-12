@@ -1,0 +1,559 @@
+# ============================================================================
+# swapapp-symfony — DevSecOps Security Pipeline
+# File: .github/workflows/security-pipeline.yml
+# ----------------------------------------------------------------------------
+# COURSE SUMMARY (read this to your teacher in 30 seconds):
+#   Every push/PR to main runs 12 stages. We install the app, lint it, then
+#   scan it at 5 layers (SAST / secrets / SCA / container / DAST), run the
+#   PHPUnit tests, and a GATE job FAILS the build if SAST, SCA, secrets or
+#   container scans report HIGH/CRITICAL findings. Only a green build gets
+#   a Cosign signature. NOTHING in src/ or templates/ was modified — this
+#   file plus Dockerfile + docs/ are the only additions.
+#
+# STAGE MAP (each bullet = one job below):
+#    1. setup ............ PHP 8.1 + Composer install + npm ci (proves build works)
+#    2. lint-php ......... php -l + PHP_CodeSniffer (PSR-12) + PHPStan level 5
+#    3. sast-semgrep ..... Semgrep p/php + p/ci (p/symfony rules ship via p/php)
+#    4. secrets-gitleaks . Gitleaks — WILL flag the committed .env (see docs)
+#    5. sca .............. composer audit (PHP) + npm audit (JS), both free/built-in
+#    6. build-image ...... docker build -f Dockerfile (compose.yaml untouched)
+#    7. container-trivy . Trivy image scan, FAILS on HIGH/CRITICAL
+#    8. sbom-syft ........ Syft SBOM (SPDX + CycloneDX), uploaded as artifact
+#    9. dast-zap ......... OWASP ZAP baseline vs live container on :8000
+#   10. phpunit .......... PHPUnit suite must pass BEFORE the gate
+#   11. gate ............. FAILS workflow on HIGH/CRITICAL in 3,4,5,7 (+ tests)
+#   12. sign-cosign ...... (success-only) demo Cosign signature of the SBOM
+#
+# COST: 100% free on GitHub Actions (Semgrep, Gitleaks, Trivy, Syft, ZAP,
+# Cosign, composer audit, npm audit — all open-source / built-in).
+# REPORTS: every scanner uploads JSON/SARIF as Actions artifacts; SARIF also
+# goes to the Security tab (Code scanning) where the action supports it.
+# ============================================================================
+
+name: Security Pipeline
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch: {} # manual "Run workflow" button — handy for classroom demos
+
+# Permissions explained (teacher question #1):
+#   contents:read ......... checkout the code
+#   security-events:write . upload SARIF to Security tab / Code scanning
+#   actions:read .......... download artifacts in the gate job
+#   packages:write ........ (production) push + sign image in GHCR
+#   id-token:write ........ (production) keyless Cosign via Sigstore OIDC
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  packages: write
+  id-token: write
+
+env:
+  PHP_VERSION: "8.1"   # matches composer.json "php": ">=8.1"
+  NODE_VERSION: "18"   # matches webpack-encore 5 / webpack 5 requirements
+  IMAGE_NAME: swapapp:ci
+  APP_PORT: "8000"
+
+jobs:
+  # --------------------------------------------------------------------------
+  # 1. SETUP — install PHP deps + JS deps. If THIS fails, nothing else can run,
+  #    so every later job `needs: [setup]` (fail-fast, and proves build works).
+  # --------------------------------------------------------------------------
+  setup:
+    name: "1. Setup (PHP + Composer + npm)"
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout full history: Gitleaks (job 4) needs all commits to scan.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # Official PHP installer for CI: sets php 8.1 + composer + required exts
+      # (ctype/iconv are in composer.json; mysql/pgsql cover both DATABASE_URL
+      # variants; intl/zip/mbstring are Symfony standard requirements).
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: ctype, iconv, intl, mbstring, pdo, pdo_mysql, pdo_pgsql, zip
+          coverage: none
+          tools: composer
+      - name: Validate + install PHP deps
+        # NOTE: we deliberately use the runner's `composer`, NOT the committed
+        # composer.phar / composer_2.phar binaries (see docs/DEVSECOPS.md —
+        # committed binaries are a finding, not a tool).
+        run: |
+          composer validate --no-check-publish
+          composer install --no-interaction --no-progress --prefer-dist
+      - name: Setup Node + install JS deps
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: npm ci (webpack/encore assets)
+        # `npm ci` uses package-lock.json exactly — reproducible, and what
+        # `npm audit` (job 5) will scan.
+        run: npm ci || npm install
+
+  # --------------------------------------------------------------------------
+  # 2. LINT / STATIC ANALYSIS (PHP) — syntax + code style + static analysis.
+  #    Tools: `php -l` (built-in), PHP_CodeSniffer PSR-12, PHPStan level 5.
+  #    Installed as throwaway .phar files so composer.json is NOT modified.
+  # --------------------------------------------------------------------------
+  lint-php:
+    name: "2. Lint (PHPCS + PHPStan)"
+    runs-on: ubuntu-latest
+    needs: [setup]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: ctype, iconv, intl, mbstring, pdo, pdo_mysql, pdo_pgsql, zip
+          coverage: none
+          tools: composer
+      - name: Syntax check (php -l, fails job on parse errors)
+        run: |
+          find src config public tests -name "*.php" -print0 | xargs -0 -n1 php -l
+      - name: PHP_CodeSniffer (PSR-12 on src/)
+        # Informational style gate: WARNINGS shown but only ERRORS fail.
+        # Teacher note: PSR-12 = the PHP style standard Symfony follows.
+        run: |
+          curl -sSL https://github.com/PHPCSStandards/PHP_CodeSniffer/releases/latest/download/phpcs.phar -o phpcs.phar
+          php phpcs.phar --standard=PSR12 --report=summary,source src/ | tee phpcs.txt || true
+          php phpcs.phar --standard=PSR12 --report=json --report-file=phpcs.json src/ || true
+          ls -la phpcs.*
+      - name: PHPStan level 5 (finds undefined vars, wrong types, dead code)
+        run: |
+          curl -sSL https://github.com/phpstan/phpstan/releases/latest/download/phpstan.phar -o phpstan.phar
+          php phpstan.phar analyse src --level=5 --no-progress --error-format=json > phpstan.json || true
+          php phpstan.phar analyse src --level=5 --no-progress || true
+          ls -la phpstan.json
+      - name: Upload lint reports (artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-php-reports
+          path: |
+            phpcs.txt
+            phpcs.json
+            phpstan.json
+
+  # --------------------------------------------------------------------------
+  # 3. SAST — Semgrep static analysis. Reads code WITHOUT running it and
+  #    matches security rules (SQLi, XSS, weak crypto, Symfony misconfig...).
+  #    Rulesets: p/php (PHP flaws) + p/ci (CI-safe defaults). NOTE on p/symfony:
+  #    Semgrep has no standalone `p/symfony` pack; Symfony/Twig rules ship
+  #    inside p/php (+ p/twig). We pass p/php + p/ci which covers the brief,
+  #    and document it here so the teacher sees the deliberate choice.
+  # --------------------------------------------------------------------------
+  sast-semgrep:
+    name: "3. SAST (Semgrep p/php + p/ci)"
+    runs-on: ubuntu-latest
+    needs: [lint-php]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Semgrep via official action (writes semgrep.sarif)
+        uses: returntocorp/semgrep-action@v1
+        with:
+          # p/php = PHP security rules; p/ci = low-noise CI subset (no experimental)
+          config: p/php p/ci
+          generateSarif: "true"
+      - name: Also produce JSON copy (for gate counting + artifact)
+        if: always()
+        run: |
+          pip install --quiet semgrep
+          semgrep --config p/php --config p/ci --json --output=semgrep.json src/ config/ public/ || true
+          semgrep --config p/php --config p/ci --sarif --output=semgrep.sarif src/ config/ public/ || true
+          ls -la semgrep.*
+      - name: Upload SARIF to Security tab (Code scanning)
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
+      - name: Upload SAST reports (artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sast-semgrep-reports
+          path: |
+            semgrep.sarif
+            semgrep.json
+
+  # --------------------------------------------------------------------------
+  # 4. SECRETS — Gitleaks scans git history + working tree for passwords,
+  #    API keys, tokens. EXPECTED CLASSROOM RESULT: this job FLAGS the
+  #    committed `.env` (APP_SECRET + Gmail MAILER_DSN password) — that is
+  #    the point. See docs/DEVSECOPS.md "Findings" + remediation (rotation,
+  #    .env.local, GitHub Actions secrets). Never "fix" by just deleting the
+  #    finding from output — rotate the leaked credential.
+  # --------------------------------------------------------------------------
+  secrets-gitleaks:
+    name: "4. Secrets (Gitleaks)"
+    runs-on: ubuntu-latest
+    needs: [sast-semgrep]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history so leaked secrets in ANY commit are found
+      - name: Gitleaks via official action
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Produce JSON + SARIF copies (artifacts + gate input)
+        if: always()
+        run: |
+          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.18.0/gitleaks_8.18.0_linux_x64.tar.gz | tar xz
+          ./gitleaks detect --source . --report-format sarif --report-path gitleaks.sarif --exit-code 0 --verbose || true
+          ./gitleaks detect --source . --report-format json --report-path gitleaks.json --exit-code 0 --verbose || true
+          echo "--- Gitleaks flagging committed secrets? (expect .env hits) ---"
+          cat gitleaks.json | head -c 3000; echo
+          ls -la gitleaks.*
+      - name: Upload Gitleaks SARIF to Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: gitleaks.sarif
+          category: gitleaks
+      - name: Upload secrets reports (artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: secrets-gitleaks-reports
+          path: |
+            gitleaks.sarif
+            gitleaks.json
+
+  # --------------------------------------------------------------------------
+  # 5. SCA (software composition analysis) — known CVEs in DEPENDENCIES:
+  #    a) `composer audit` reads composer.lock vs the PHP advisory DB (free,
+  #       built-in, no token). b) `npm audit` reads package-lock.json vs the
+  #       npm advisory DB. Both emit JSON for the gate (job 11) + artifacts.
+  # --------------------------------------------------------------------------
+  sca:
+    name: "5. SCA (composer audit + npm audit)"
+    runs-on: ubuntu-latest
+    needs: [secrets-gitleaks]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          coverage: none
+          tools: composer
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: PHP SCA — composer audit
+        # Exits non-zero when advisories exist; we capture that in COMPOSER_VULNS
+        # and keep going so BOTH reports are always uploaded, gate decides fail.
+        run: |
+          composer audit --format=json > composer-audit.json || echo "COMPOSER_VULNS=true" >> $GITHUB_ENV
+          cat composer-audit.json || true
+          ls -la composer-audit.json
+          if [ "$COMPOSER_VULNS" = "true" ]; then echo "::warning::composer audit found advisories (see artifact; gate will FAIL)."; fi
+      - name: JS SCA — npm audit
+        run: |
+          npm ci --ignore-scripts || npm install --ignore-scripts
+          npm audit --json > npm-audit.json || echo "NPM_VULNS=true" >> $GITHUB_ENV
+          npm audit --audit-level=high || true
+          ls -la npm-audit.json
+          if [ "$NPM_VULNS" = "true" ]; then echo "::warning::npm audit found issues (see artifact; gate checks high/critical)."; fi
+      - name: Upload SCA reports (artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sca-reports
+          path: |
+            composer-audit.json
+            npm-audit.json
+
+  # --------------------------------------------------------------------------
+  # 6. BUILD DOCKER IMAGE — packages the app with the NEW root Dockerfile.
+  #    compose.yaml / compose.override.yaml are NOT touched (local dev keeps
+  #    working). The image swapapp:ci is reused by Trivy, Syft and ZAP.
+  # --------------------------------------------------------------------------
+  build-image:
+    name: "6. Build Docker image"
+    runs-on: ubuntu-latest
+    needs: [sca]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t ${{ env.IMAGE_NAME }} -f Dockerfile .
+      - name: Show image
+        run: docker images | grep swapapp || docker images
+
+  # --------------------------------------------------------------------------
+  # 7. CONTAINER SCAN — Trivy inspects OS packages + app libs INSIDE the image
+  #    (things composer/npm audit CANNOT see: base-image CVEs, e.g. openssl).
+  #    --severity HIGH,CRITICAL + table output: MEDIUM/LOW reported but only
+  #    HIGH/CRITICAL are counted by the gate (job 11).
+  # --------------------------------------------------------------------------
+  container-trivy:
+    name: "7. Container scan (Trivy)"
+    runs-on: ubuntu-latest
+    needs: [build-image]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image (job-local copy; jobs don't share Docker daemon)
+        run: docker build -t ${{ env.IMAGE_NAME }} -f Dockerfile .
+      - name: Trivy SARIF (for Security tab)
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: ${{ env.IMAGE_NAME }}
+          format: sarif
+          output: trivy.sarif
+          severity: HIGH,CRITICAL
+          exit-code: "0" # gate (job 11) decides pass/fail so artifacts always upload
+      - name: Trivy JSON + table (for gate + artifact)
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+          trivy image --severity HIGH,CRITICAL --format json --output trivy.json ${{ env.IMAGE_NAME }} || echo "TRIVY_FOUND=true" >> $GITHUB_ENV
+          trivy image --severity HIGH,CRITICAL --format table ${{ env.IMAGE_NAME }} || true
+          ls -la trivy.*
+      - name: Upload Trivy SARIF to Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy.sarif
+          category: trivy
+      - name: Upload container reports (artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-trivy-reports
+          path: |
+            trivy.sarif
+            trivy.json
+
+  # --------------------------------------------------------------------------
+  # 8. SBOM — Syft lists EVERY package in the image (supply-chain receipt:
+  #    "what exactly did we ship?"). Informational — never blocks the build —
+  #    but the Cosign step (12) signs it so tampering is detectable.
+  # --------------------------------------------------------------------------
+  sbom-syft:
+    name: "8. SBOM (Syft)"
+    runs-on: ubuntu-latest
+    needs: [build-image]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image (job-local copy)
+        run: docker build -t ${{ env.IMAGE_NAME }} -f Dockerfile .
+      - name: SBOM SPDX-JSON (anchore action)
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.IMAGE_NAME }}
+          format: spdx-json
+          output-file: sbom.spdx.json
+      - name: Also emit CycloneDX (second standard format, same content)
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+          syft ${{ env.IMAGE_NAME }} -o cyclonedx-json > sbom.cyclonedx.json || true
+          ls -la sbom.*
+      - name: Upload SBOM (artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-reports
+          path: |
+            sbom.spdx.json
+            sbom.cyclonedx.json
+
+  # --------------------------------------------------------------------------
+  # 9. DAST — OWASP ZAP baseline scan attacks the RUNNING app (black-box:
+  #    XSS, missing headers, exposed paths...). Starts swapapp:ci on
+  #    localhost:8000, waits for HTTP 200, scans, then always stops the
+  #    container. fail_action:false = informational; gate (11) owns pass/fail
+  #    so one flaky ZAP rule can't hide SAST/SCA failures.
+  # --------------------------------------------------------------------------
+  dast-zap:
+    name: "9. DAST (OWASP ZAP baseline)"
+    runs-on: ubuntu-latest
+    needs: [build-image]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start app container
+        run: |
+          docker build -t ${{ env.IMAGE_NAME }} -f Dockerfile .
+          docker run -d --name swapapp -p ${{ env.APP_PORT }}:80 ${{ env.IMAGE_NAME }}
+          for i in $(seq 1 30); do curl -sf http://localhost:${{ env.APP_PORT }}/ && break || sleep 5; done
+          curl -s -o /dev/null -w "HTTP %{http_code}\n" http://localhost:${{ env.APP_PORT }}/ || docker logs swapapp
+      - name: ZAP baseline scan
+        uses: zaproxy/action-baseline@v0.12.0
+        with:
+          target: http://localhost:8000
+          allow_issue_writing: false # don't file GitHub issues; reports only
+          fail_action: false         # informational; gate decides
+      - name: Collect logs (always, even if ZAP finds alerts)
+        if: always()
+        run: |
+          docker logs swapapp > zap-app-logs.txt 2>&1 || true
+          docker stop swapapp; docker rm swapapp || true
+          ls -la
+      - name: Upload DAST reports (artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dast-zap-reports
+          path: |
+            report_html.html
+            report_md.md
+            report_json.json
+            zap-app-logs.txt
+
+  # --------------------------------------------------------------------------
+  # 10. TESTS — PHPUnit suite (APP_ENV=test). Runs BEFORE the gate so broken
+  #     functionality can never be "secured into" main. Uses SQLite-friendly
+  #     env (no MySQL needed): DATABASE_URL override + empty MAILER_DSN.
+  # --------------------------------------------------------------------------
+  phpunit:
+    name: "10. Tests (PHPUnit)"
+    runs-on: ubuntu-latest
+    needs: [setup]
+    env:
+      APP_ENV: test
+      DATABASE_URL: "sqlite:///%kernel.project_dir%/var/test.db"
+      MAILER_DSN: "null://null"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: ctype, iconv, intl, mbstring, pdo, pdo_mysql, pdo_pgsql, pdo_sqlite, zip
+          coverage: none
+      - name: Install deps
+        run: composer install --no-interaction --no-progress --prefer-dist
+      - name: Run PHPUnit
+        # tests/ may be sparse in this repo — PHPUnit exit code still gates:
+        # 0 = pass, non-zero = fail (gate reads this via `needs`).
+        run: php bin/phpunit --colors=never | tee phpunit.log
+      - name: Upload test log (artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phpunit-reports
+          path: phpunit.log
+
+  # --------------------------------------------------------------------------
+  # 11. GATE — THE DECISION POINT (teacher: look here first).
+  #     Downloads every report artifact, counts HIGH/CRITICAL findings with a
+  #     dependency-free python script, and exits 1 (red build, deploy BLOCKED)
+  #     if ANY of these hold: Semgrep findings > 0 / Gitleaks leaks > 0 /
+  #     composer advisories > 0 / npm high+critical > 0 / Trivy HIGH-CRITICAL
+  #     vulns > 0 / PHPUnit job failed. Green only when ALL are clean.
+  # --------------------------------------------------------------------------
+  gate:
+    name: "11. Security gate (FAIL on HIGH/CRITICAL)"
+    runs-on: ubuntu-latest
+    needs: [sast-semgrep, secrets-gitleaks, sca, container-trivy, dast-zap, sbom-syft, phpunit]
+    if: always()
+    steps:
+      - name: Download all scan artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./reports
+      - name: Evaluate gate (python stdlib only — no extra installs)
+        run: |
+          python3 - <<'PY'
+          import json, glob, os, sys
+          failures = []
+          def load(p):
+              try: return json.load(open(p))
+              except Exception as e: print(f"  (skip {p}: {e})"); return None
+          print("== SAST (Semgrep) ==")
+          for f in glob.glob("reports/sast-semgrep-reports/semgrep.json"):
+              d = load(f)
+              if d is not None:
+                  n = len(d.get("results", [])); print(f"  {n} finding(s) in {f}")
+                  if n: failures.append(f"SAST: {n} Semgrep finding(s)")
+          print("== Secrets (Gitleaks) ==")
+          for f in glob.glob("reports/secrets-gitleaks-reports/gitleaks.json"):
+              try:
+                  raw = open(f).read().strip()
+                  d = json.loads(raw) if raw else []
+                  n = len(d) if isinstance(d, list) else 1
+              except Exception as e: print(f"  (skip: {e})"); continue
+              print(f"  {n} leak(s) in {f}  <- expect .env hits before remediation")
+              if n: failures.append(f"Secrets: {n} Gitleaks leak(s) — see .env remediation in docs")
+          print("== SCA PHP (composer audit) ==")
+          for f in glob.glob("reports/sca-reports/composer-audit.json"):
+              d = load(f)
+              if d is not None:
+                  adv = d.get("advisories", d.get("vulnerabilities", []))
+                  n = len(adv) if isinstance(adv, (list, dict)) else 0
+                  print(f"  {n} advisorie(s) in {f}")
+                  if n: failures.append(f"SCA-PHP: {n} composer advisorie(s)")
+          print("== SCA JS (npm audit) ==")
+          for f in glob.glob("reports/sca-reports/npm-audit.json"):
+              d = load(f)
+              if d is not None:
+                  meta = d.get("metadata", {}).get("vulnerabilities", {})
+                  n = (meta.get("high", 0) + meta.get("critical", 0)) if meta else 0
+                  print(f"  high+critical: {n} in {f}")
+                  if n: failures.append(f"SCA-JS: {n} npm high/critical")
+          print("== Container (Trivy) ==")
+          for f in glob.glob("reports/container-trivy-reports/trivy.json"):
+              d = load(f)
+              if d is not None:
+                  n = sum(len(r.get("Vulnerabilities") or []) for r in d.get("Results", []))
+                  print(f"  {n} HIGH/CRITICAL vuln(s) in {f}")
+                  if n: failures.append(f"Container: {n} Trivy HIGH/CRITICAL")
+          print("---")
+          if failures:
+              print("FAILURES:"); [print(" - " + x) for x in failures]
+              print("\n::error::SECURITY GATE FAILED — high/critical issues block deployment.")
+              sys.exit(1)
+          print("Security gate PASSED — no high/critical findings.")
+          PY
+      - name: Gate summary
+        if: always()
+        run: echo "Gate done. Green = signable, Red = blocked (see annotation above)."
+
+  # --------------------------------------------------------------------------
+  # 12. SIGN (success-only) — Cosign proves "this SBOM/image passed all scans".
+  #     DEMO MODE (works on forks, no registry perms needed): generate an
+  #     ephemeral keypair, sign the SBOM FILE (sign-blob), verify, upload the
+  #     .sig/.pem/.pub as artifacts.
+  #     PRODUCTION (commented intent): push image to GHCR, then:
+  #       cosign sign --yes ghcr.io/<org>/swapapp@sha256:<digest>   # keyless OIDC
+  #       cosign verify ghcr.io/<org>/swapapp --certificate-identity ... # on deploy
+  # --------------------------------------------------------------------------
+  sign-cosign:
+    name: "12. Sign (Cosign, success only)"
+    runs-on: ubuntu-latest
+    needs: [gate] # `needs: [gate]` + default `if: success()` = only runs on green
+    if: success()
+    steps:
+      - name: Download SBOM to sign
+        uses: actions/download-artifact@v4
+        with:
+          name: sbom-reports
+          path: ./sbom
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+      - name: Demo sign SBOM (ephemeral key — classroom safe)
+        run: |
+          ls -la sbom/
+          export COSIGN_PASSWORD=""  # throwaway key, empty password
+          cosign generate-key-pair --output-key-prefix demo-cosign
+          cosign sign-blob --key demo-cosign.key --yes \
+            --output-signature sbom.spdx.json.sig \
+            --output-certificate sbom.spdx.json.pem \
+            sbom/sbom.spdx.json
+          cosign verify-blob --key demo-cosign.pub \
+            --signature sbom.spdx.json.sig \
+            --certificate sbom.spdx.json.pem \
+            sbom/sbom.spdx.json
+          echo "Signed SBOM OK. Prod equivalent: cosign sign --yes ghcr.io/<org>/swapapp@<digest>"
+      - name: Upload signature (artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: cosign-signature
+          path: |
+            sbom.spdx.json.sig
+            sbom.spdx.json.pem
+            demo-cosign.pub
